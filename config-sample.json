@@ -9,7 +9,7 @@
   },
   "telegram": {
     "apiurl": "https://api.telegram.org/bot",
-    "apikey": "...",
+    "apikey": "",
     "chat": "-100122334455"
   }
 }
