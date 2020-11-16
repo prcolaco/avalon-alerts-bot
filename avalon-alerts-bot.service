@@ -1,0 +1,13 @@
+[Unit]
+Description=Avalon alerts bot daemon
+After=network.target
+
+[Service]
+Type=simple
+User=user
+WorkingDirectory=/home/dtube/bots/telegram/avalon-alerts-bot/
+ExecStart=/home/dtube/bots/telegram/avalon-alerts-bot/avalon-alerts-bot
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
