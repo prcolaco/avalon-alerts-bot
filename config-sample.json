@@ -3,6 +3,9 @@
     "https://avalon.oneloved.tube/rank/leaders"
   ],
   "db": "db.json",
+  "misses": {
+    "triggers": [500, 100, 50, 10, 5]
+  },
   "intervals": {
     "watcher": 60000,
     "retry": 1000

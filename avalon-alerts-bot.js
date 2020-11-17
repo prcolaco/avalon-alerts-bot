@@ -7,30 +7,79 @@ const config = require('./config.json');
 var currentEndpoint = 0;
 var retries = 0;
 
-var db = [];
+var db = {};
 
 
 const watcher = async () => {
   console.log('Watcher starting');
 
   try {
-    // Save old db to compare
-    const old = db;
+    // Save old leaders to compare
+    const old = db.leaders;
 
     // Get new leaders data
     await update_db_leaders();
+  
+    // Actual missers
+    const missers = Object.keys(db.missers);
 
-    // Compare new db with old
-    db.map(leader => {
+    // Compare new leaders from db with old
+    db.leaders.map(leader => {
       // Find the old leader
       const oldLeader = old.find(l => l.name === leader.name) || {};
 
-      // Calc the misses
-      const misses = leader.missed - (oldLeader.missed || 0);
+      // Is this leader an actual misser?
+      if (missers.includes(leader.name)) {
+        // Get misser data from db
+        const misser = db.missers[leader.name];
 
-      // Are there any misses?
-      if (misses != 0) {
-        telegram(`Leader \`${leader.name}\` missed *${misses}* block(s), total blocks missed now is *${leader.missed}*`);
+        // Calc total and new misses
+        const total = leader.missed - misser.start + 1;
+        const misses = leader.missed - misser.last;
+
+        // First, check if started producing again
+        if (misses === 0 && leader.produced > oldLeader.produced) {
+          telegram(`Leader \`${leader.name}\` started producing again, after missing *${total}* block(s), total blocks missed now is *${leader.missed}*`);
+          // Remove misser from db
+          db.missers[leader.name] = undefined;
+          return;
+        }
+
+        // Get triggers from config
+        const repeater = config.misses.triggers[0];
+        const triggers = config.misses.triggers.slice(1);
+        var message = false;
+
+        // Total misses are less than repeater trigger?
+        if (total < repeater) {
+          // Message if found one that fits, through all triggers that didn't fire yet
+          message = (triggers.find(t => (t >= (total - misses) && t <= misses)) !== undefined);
+        } else {
+          // Message if new misses greater or equal than repeater
+          message = (misses >= repeater);
+        }
+
+        // Send message?
+        if (message) {
+          telegram(`Leader \`${leader.name}\` continues missing, now with *${total}* block(s) missed`);
+          // Update last message missed in db
+          misser.last = leader.missed;
+        }
+      } else {
+        // Calc the misses
+        const misses = leader.missed - (oldLeader.missed || 0);
+
+        // Are there any misses?
+        if (misses !== 0) {
+          // Add to missers in db
+          db.missers[leader.name] = {
+            produced: leader.produced,
+            start: leader.missed,
+            last: leader.missed
+          };
+
+          telegram(`Leader \`${leader.name}\` missed *${misses}* block(s)`);
+        }
       }
     });
 
@@ -70,7 +119,7 @@ const update_db_leaders = async () => {
         console.log('Failed updating leaders data:', json);
         return;
       }
-      db = leaders;
+      db.leaders = leaders;
     })
     .catch (err => {
       console.error('Error updating leaders data');
