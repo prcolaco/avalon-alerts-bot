@@ -47,8 +47,8 @@ const watcher = async () => {
         }
 
         // Get triggers from config
-        const repeater = config.misses.triggers[0];
-        const triggers = config.misses.triggers.slice(1);
+        const repeater = config.watcher.triggers[0];
+        const triggers = config.watcher.triggers.slice(1);
         var message = false;
 
         // Total misses are less than repeater trigger?
@@ -103,7 +103,7 @@ const nextEndpoint = () => currentEndpoint < (config.endpoints.length - 1) ? cur
 
 const scheduleRetry = (action) => {
   currentEndpoint = nextEndpoint();
-  if (retries++ < config.action.retries) {
+  if (retries++ < config.watcher.retries) {
     setTimeout(action, config.intervals.retry);
   } else {
     // Reached retries limit
