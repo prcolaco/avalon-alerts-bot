@@ -37,9 +37,10 @@ const watcher = async () => {
         const total = leader.missed - misser.start + 1;
         const misses = leader.missed - misser.last;
 
-        // First, check if started producing again
-        if (misses === 0 && leader.produced > oldLeader.produced) {
-          telegram(`Leader \`${leader.name}\` started producing again, after missing *${total}* block(s), total blocks missed now is *${leader.missed}*`);
+        // First, check if started producing again or got out of schedule
+        if (leader.missed === oldLeader.missed) {
+          const action =  leader.produced > oldLeader.produced ? 'started producing again' : 'is out of schedule';
+          telegram(`Leader \`${leader.name}\` ${action}, after missing *${total}* block(s), total blocks missed now is *${leader.missed}*`);
           // Remove misser from db
           db.missers[leader.name] = undefined;
           return;
