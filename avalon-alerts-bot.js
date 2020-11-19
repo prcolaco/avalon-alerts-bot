@@ -7,7 +7,10 @@ const config = require('./config.json');
 var currentEndpoint = 0;
 var retries = 0;
 
-var db = {};
+var db = {
+  missers: {},
+  leaders: []
+};
 
 
 const watcher = async () => {
@@ -19,14 +22,23 @@ const watcher = async () => {
 
     // Get new leaders data
     await update_db_leaders();
-  
+
+    // Alert leaders that unregistered
+    old.filter(o => (db.leaders.find(l => l.name === o.name) === undefined)).map(leader => telegram(`Leader \`${leader.name}\` unregistered`));
+
     // Actual missers
     const missers = Object.keys(db.missers);
 
     // Compare new leaders from db with old
     db.leaders.map(leader => {
       // Find the old leader
-      const oldLeader = old.find(l => l.name === leader.name) || {};
+      const oldLeader = old.find(l => l.name === leader.name);
+
+      // Leader not found in old leaders db?
+      if (oldLeader === undefined) {
+        telegram(`Leader \`${leader.name}\` registered`);
+        return;
+      }
 
       // Is this leader an actual misser?
       if (missers.includes(leader.name)) {
@@ -124,7 +136,7 @@ const update_db_leaders = async () => {
     })
     .catch (err => {
       console.error('Error updating leaders data');
-      console.error(err)
+      console.error(err);
     });
 }
 
