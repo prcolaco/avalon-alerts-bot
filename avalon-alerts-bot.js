@@ -4,7 +4,7 @@ const fetch = require('node-fetch');
 const config = require('./config.json');
 
 
-var currentEndpoint = 0;
+var currentAPI = 0;
 var retries = 0;
 
 var db = {
@@ -87,7 +87,7 @@ const watcher = async () => {
           // Add to missers in db
           db.missers[leader.name] = {
             produced: leader.produced,
-            start: leader.missed,
+            start: oldLeader.missed + 1,
             last: leader.missed
           };
 
@@ -97,7 +97,7 @@ const watcher = async () => {
     });
 
   } catch (e) {
-    console.error('Endpoint', config.endpoints[currentEndpoint], 'failed to retrieve leader data, reason:', e);
+    console.error('API node', config.apis[currentAPI], 'failed to retrieve leader data, reason:', e);
     // Retry the watcher because this might happen due to communication errors with the node...
     console.log('Retrying the watcher in a bit...');
     scheduleRetry(watcher);
@@ -109,12 +109,33 @@ const watcher = async () => {
   console.log('Watcher done, sleeping for a while...');
 }
 
+const APIwatcher = async () => {
+  config.apiwatcher.map(api => {
+    try {
+      fetch(`${api}/count`)
+        .then(res => {
+          if (!res.ok) {
+            throw `Result has invalid status: ${res.status}`;
+          }
+        })
+        .catch(err => {
+          throw err;
+        });
+    } catch (e) {
+      console.error('API watcher node', api, 'failed to respond, reason:', e);
+      // Sending alert to telegram
+      telegram(`API node ${api} failed to reply`);
+    }
+  });
+}
+
+
 // helpers
 
-const nextEndpoint = () => currentEndpoint < (config.endpoints.length - 1) ? currentEndpoint + 1 : 0;
+const nextAPI = () => currentAPI < (config.apis.length - 1) ? currentAPI + 1 : 0;
 
 const scheduleRetry = (action) => {
-  currentEndpoint = nextEndpoint();
+  currentAPI = nextAPI();
   if (retries++ < config.watcher.retries) {
     setTimeout(action, config.intervals.retry);
   } else {
@@ -125,7 +146,7 @@ const scheduleRetry = (action) => {
 }
 
 const update_db_leaders = async () => {
-  return fetch(`${config.endpoints[currentEndpoint]}`)
+  return fetch(`${config.apis[currentAPI]}/rank/leaders`)
     .then(res => res.json())
     .then(leaders => {
       if (!leaders || !Array.isArray(leaders)) {

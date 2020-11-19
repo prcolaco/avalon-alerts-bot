@@ -1,12 +1,19 @@
 {
-  "endpoints": [
-    "https://avalon.oneloved.tube/rank/leaders"
+  "apis": [
+    "https://avalon.oneloved.tube",
+    "https://dtube.fso.ovh"
   ],
   "db": "db.json",
   "watcher": {
     "triggers": [500, 100, 50, 10, 5],
     "retries": 10
   },
+  "apiwatcher": [
+    "https://avalon.d.tube",
+    "https://avalon.oneloved.tube",
+    "https://avalon.tibfox.com",
+    "https://dtube.fso.ovh"
+  ],
   "intervals": {
     "watcher": 300000,
     "retry": 1000
