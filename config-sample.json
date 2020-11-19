@@ -16,6 +16,7 @@
   ],
   "intervals": {
     "watcher": 300000,
+    "apiwatcher": 60000,
     "retry": 1000
   },
   "telegram": {

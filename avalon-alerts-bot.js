@@ -219,5 +219,8 @@ loaddb();
 // start watcher
 setInterval(watcher, config.intervals.watcher);
 
+// start API watcher
+setInterval(APIwatcher, config.intervals.apiwatcher);
+
 // do 1st watcher round now
 setImmediate(watcher);
