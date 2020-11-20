@@ -1,5 +1,6 @@
 const fs = require('fs');
 const fetch = require('node-fetch');
+const formatDistance = require('date-fns/formatDistance');
 
 const config = require('./config.json');
 
@@ -8,14 +9,13 @@ var currentAPI = 0;
 var retries = 0;
 
 var db = {
+  down: [],
   missers: {},
   leaders: []
 };
 
 
 const watcher = async () => {
-  console.log('Watcher starting');
-
   try {
     // Save old leaders to compare
     const old = db.leaders;
@@ -105,28 +105,45 @@ const watcher = async () => {
   }
 
   savedb();
-
-  console.log('Watcher done, sleeping for a while...');
 }
 
 const APIwatcher = async () => {
-  config.apiwatcher.map(api => {
-    try {
-      fetch(`${api}/count`)
-        .then(res => {
-          if (!res.ok) {
-            throw `Result has invalid status: ${res.status}`;
-          }
-        })
-        .catch(err => {
-          throw err;
-        });
-    } catch (e) {
-      console.error('API watcher node', api, 'failed to respond, reason:', e);
-      // Sending alert to telegram
-      telegram(`API node ${api} failed to reply`);
+  // Save old leaders to compare
+  const old = db.down || [];
+
+  const nodes = await get_api_nodes_down();
+
+  // Alert api nodes back up
+  old.filter(api => !nodes.includes(api.node)).map(api => telegram(`API node ${api.node} is back up, it was down for ${formatDistance(new Date(api.timestamp), new Date())}`));
+
+  // Process api nodes down
+  const down = nodes.map(node => {
+    // Find if this node was already down
+    const alreadyDown = old.find(api => api.node === node);
+
+    // Was it?
+    if (alreadyDown) {
+      // Get the seconds down
+      const secs = Math.round((Date.now() - alreadyDown.timestamp) / 1000);
+
+      // Find a trigger that fits if any
+      const message = (config.apiwatcher.triggers.find(t => Math.abs(secs - t) < 30) !== undefined) || ((secs % config.apiwatcher.triggers[0]) < 30);
+
+      // Send message?
+      if (message) {
+        telegram(`API node ${node} has been down for ${formatDistance(new Date(alreadyDown.timestamp), new Date())}`);
+      }
+    } else {
+      telegram(`API node ${node} went down`);
     }
+
+    const timestamp = alreadyDown ? alreadyDown.timestamp : Date.now();
+    return { node, timestamp };
   });
+
+  // Save api nodes down to db
+  db.down = down;
+  savedb();
 }
 
 
@@ -150,7 +167,7 @@ const update_db_leaders = async () => {
     .then(res => res.json())
     .then(leaders => {
       if (!leaders || !Array.isArray(leaders)) {
-        console.log('Failed updating leaders data:', json);
+        console.log('Failed updating leaders data:', leaders);
         return;
       }
       db.leaders = leaders;
@@ -159,6 +176,21 @@ const update_db_leaders = async () => {
       console.error('Error updating leaders data');
       console.error(err);
     });
+}
+
+const get_api_nodes_down = async () => {
+  const down = await Promise.all(config.apiwatcher.nodes.map(async api => {
+    try {
+      const res = await fetch(`${api}/count`);
+
+      return (!res.ok);
+    } catch (e) {
+      console.error('API watcher node', api, 'fetch failed, reason:', e);
+      return true;
+    }
+  }));
+
+	return config.apiwatcher.nodes.filter((_v, index) => down[index]);
 }
 
 const telegram = async (msg) => {
