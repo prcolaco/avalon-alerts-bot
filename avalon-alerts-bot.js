@@ -117,34 +117,38 @@ const APIwatcher = async () => {
   old.filter(api => !nodes.includes(api.node)).map(async api => await telegram(`API node ${api.node} is back up, it was down for ${formatDistance(new Date(api.timestamp), new Date())}`));
 
   // Process api nodes down
-  var down = [];
-  nodes.map(async node => {
+  const now = Date.now();
+  const down = nodes.map(node => {
     // Find if this node was already down
-    const alreadyDown = old.find(api => api.node === node);
+    const oldDown = old.find(api => api.node === node);
 
-    // Was it?
-    if (alreadyDown) {
+    const timestamp = oldDown ? oldDown.timestamp : now;
+    return { node, timestamp };
+  });
+
+  // Save api nodes down to db
+  db.down = down;
+  savedb();
+
+  // Send alerts for down nodes
+  down.map(async api => {
+    // Was this node already down?
+    if (api.timestamp !== now) {
       // Get the seconds down
-      const secs = Math.round((Date.now() - alreadyDown.timestamp) / 1000);
+      const secs = Math.round((now - api.timestamp) / 1000);
 
       // Find a trigger that fits if any
       const message = (config.apiwatcher.triggers.find(t => Math.abs(secs - t) < 30) !== undefined) || ((secs % config.apiwatcher.triggers[0]) < 30);
 
       // Send message?
       if (message) {
-        await telegram(`API node ${node} has been down for ${formatDistance(new Date(alreadyDown.timestamp), new Date())}`);
+        await telegram(`API node ${api.node} has been down for ${formatDistance(new Date(api.timestamp), new Date())}`);
       }
     } else {
-      await telegram(`API node ${node} went down`);
+      await telegram(`API node ${api.node} went down`);
     }
-
-    const timestamp = alreadyDown ? alreadyDown.timestamp : Date.now();
-    down.push({ node, timestamp });
   });
 
-  // Save api nodes down to db
-  db.down = down;
-  savedb();
 }
 
 
@@ -182,7 +186,7 @@ const update_db_leaders = async () => {
 const get_api_nodes_down = async () => {
   const down = await Promise.all(config.apiwatcher.nodes.map(async api => {
     try {
-      const res = await fetch(`${api}/count`);
+      const res = await fetch(`${api}/count`, { timeout: 5000 });
 
       return (!res.ok);
     } catch (e) {
