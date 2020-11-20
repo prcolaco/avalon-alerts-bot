@@ -83,7 +83,7 @@ const watcher = async () => {
         const misses = leader.missed - (oldLeader.missed || 0);
 
         // Are there any misses?
-        if (misses !== 0) {
+        if (misses > 0) {
           // Add to missers in db
           db.missers[leader.name] = {
             produced: leader.produced,
