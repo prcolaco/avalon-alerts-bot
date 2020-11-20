@@ -30,13 +30,13 @@ const watcher = async () => {
     const missers = Object.keys(db.missers);
 
     // Compare new leaders from db with old
-    db.leaders.map(leader => {
+    db.leaders.map(async leader => {
       // Find the old leader
       const oldLeader = old.find(l => l.name === leader.name);
 
       // Leader not found in old leaders db?
       if (oldLeader === undefined) {
-        telegram(`Leader \`${leader.name}\` registered`);
+        await telegram(`Leader \`${leader.name}\` registered`);
         return;
       }
 
@@ -52,7 +52,7 @@ const watcher = async () => {
         // First, check if started producing again or got out of schedule
         if (leader.missed === oldLeader.missed) {
           const action =  leader.produced > oldLeader.produced ? 'started producing again' : 'is out of schedule';
-          telegram(`Leader \`${leader.name}\` ${action}, after missing *${total}* block(s), total blocks missed now is *${leader.missed}*`);
+          await telegram(`Leader \`${leader.name}\` ${action}, after missing *${total}* block(s), total blocks missed now is *${leader.missed}*`);
           // Remove misser from db
           delete db.missers[leader.name];
           return;
@@ -74,7 +74,7 @@ const watcher = async () => {
 
         // Send message?
         if (message) {
-          telegram(`Leader \`${leader.name}\` continues missing, now with *${total}* block(s) missed`);
+          await telegram(`Leader \`${leader.name}\` continues missing, now with *${total}* block(s) missed`);
           // Update last message missed in db
           misser.last = leader.missed;
         }
@@ -91,7 +91,7 @@ const watcher = async () => {
             last: leader.missed
           };
 
-          telegram(`Leader \`${leader.name}\` missed *${misses}* block(s)`);
+          await telegram(`Leader \`${leader.name}\` missed *${misses}* block(s)`);
         }
       }
     });
@@ -114,10 +114,11 @@ const APIwatcher = async () => {
   const nodes = await get_api_nodes_down();
 
   // Alert api nodes back up
-  old.filter(api => !nodes.includes(api.node)).map(api => telegram(`API node ${api.node} is back up, it was down for ${formatDistance(new Date(api.timestamp), new Date())}`));
+  old.filter(api => !nodes.includes(api.node)).map(async api => await telegram(`API node ${api.node} is back up, it was down for ${formatDistance(new Date(api.timestamp), new Date())}`));
 
   // Process api nodes down
-  const down = nodes.map(node => {
+  var down = [];
+  nodes.map(async node => {
     // Find if this node was already down
     const alreadyDown = old.find(api => api.node === node);
 
@@ -131,14 +132,14 @@ const APIwatcher = async () => {
 
       // Send message?
       if (message) {
-        telegram(`API node ${node} has been down for ${formatDistance(new Date(alreadyDown.timestamp), new Date())}`);
+        await telegram(`API node ${node} has been down for ${formatDistance(new Date(alreadyDown.timestamp), new Date())}`);
       }
     } else {
-      telegram(`API node ${node} went down`);
+      await telegram(`API node ${node} went down`);
     }
 
     const timestamp = alreadyDown ? alreadyDown.timestamp : Date.now();
-    return { node, timestamp };
+    down.push({ node, timestamp });
   });
 
   // Save api nodes down to db
