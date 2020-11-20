@@ -24,7 +24,7 @@ const watcher = async () => {
     await update_db_leaders();
 
     // Alert leaders that unregistered
-    old.filter(o => (db.leaders.find(l => l.name === o.name) === undefined)).map(leader => telegram(`Leader \`${leader.name}\` unregistered`));
+    old.filter(o => (db.leaders.find(l => l.name === o.name) === undefined)).map(async leader => await telegram(`Leader \`${leader.name}\` unregistered`));
 
     // Actual missers
     const missers = Object.keys(db.missers);
