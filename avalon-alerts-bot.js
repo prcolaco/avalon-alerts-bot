@@ -54,7 +54,7 @@ const watcher = async () => {
           const action =  leader.produced > oldLeader.produced ? 'started producing again' : 'is out of schedule';
           telegram(`Leader \`${leader.name}\` ${action}, after missing *${total}* block(s), total blocks missed now is *${leader.missed}*`);
           // Remove misser from db
-          db.missers[leader.name] = undefined;
+          delete db.missers[leader.name];
           return;
         }
 
