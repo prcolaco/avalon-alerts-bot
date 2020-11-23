@@ -24,19 +24,22 @@ const watcher = async () => {
     await update_db_leaders();
 
     // Alert leaders that unregistered
-    old.filter(o => (db.leaders.find(l => l.name === o.name) === undefined)).map(async leader => await telegram(`Leader \`${leader.name}\` unregistered`));
+    old.filter(o => (db.leaders.find(l => l.name === o.name) === undefined)).map(async leader => await telegram(`Leader${candidate} \`${leader.name}\` unregistered`));
 
     // Actual missers
     const missers = Object.keys(db.missers);
 
     // Compare new leaders from db with old
-    db.leaders.map(async leader => {
+    db.leaders.map(async (leader, index) => {
+      // Check if this leader is producing or just a candidate
+      const candidate = index < 13 ? '' : ' candidate';
+
       // Find the old leader
       const oldLeader = old.find(l => l.name === leader.name);
 
       // Leader not found in old leaders db?
       if (oldLeader === undefined) {
-        await telegram(`Leader \`${leader.name}\` registered`);
+        await telegram(`Leader${candidate} \`${leader.name}\` registered`);
         return;
       }
 
@@ -51,10 +54,11 @@ const watcher = async () => {
 
         // First, check if started producing again or got out of schedule
         if (leader.missed === oldLeader.missed) {
-          const action =  leader.produced > oldLeader.produced ? 'started producing again' : 'is out of schedule';
-          await telegram(`Leader \`${leader.name}\` ${action}, after missing *${total}* block(s), total blocks missed now is *${leader.missed}*`);
+          const action =  !candidate ? 'started producing again' : 'is out of schedule';
+          await telegram(`Leader${candidate} \`${leader.name}\` ${action}, after missing *${total}* block(s), total blocks missed now is *${leader.missed}*`);
           // Remove misser from db
           delete db.missers[leader.name];
+          savedb();
           return;
         }
 
@@ -74,9 +78,10 @@ const watcher = async () => {
 
         // Send message?
         if (message) {
-          await telegram(`Leader \`${leader.name}\` continues missing, now with *${total}* block(s) missed`);
+          await telegram(`Leader${candidate} \`${leader.name}\` continues missing, now with *${total}* block(s) missed`);
           // Update last message missed in db
           misser.last = leader.missed;
+          savedb();
         }
       } else {
         // Calc the misses
@@ -90,8 +95,9 @@ const watcher = async () => {
             start: oldLeader.missed + 1,
             last: leader.missed
           };
+          savedb();
 
-          await telegram(`Leader \`${leader.name}\` missed *${misses}* block(s)`);
+          await telegram(`Leader${candidate} \`${leader.name}\` missed *${misses}* block(s)`);
         }
       }
     });
@@ -113,11 +119,19 @@ const APIwatcher = async () => {
 
   const nodes = await get_api_nodes_down();
 
+  // If lost contact with all nodes, maybe it's a network issue?
+  if (nodes.length === config.apiwatcher.nodes.length) {
+    console.log('Lost contact with all API nodes at once, maybe network issue? Skipping...');
+    return;
+  }
+
+  // Get current timestamp
+  const now = Date.now();
+
   // Alert api nodes back up
   old.filter(api => !nodes.includes(api.node)).map(async api => await telegram(`API node ${api.node} is back up, it was down for ${formatDistance(new Date(api.timestamp), new Date())}`));
 
   // Process api nodes down
-  const now = Date.now();
   const down = nodes.map(node => {
     // Find if this node was already down
     const oldDown = old.find(api => api.node === node);
