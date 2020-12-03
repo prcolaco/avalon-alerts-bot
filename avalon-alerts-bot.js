@@ -54,11 +54,16 @@ const watcher = async () => {
 
         // First, check if started producing again or got out of schedule
         if (leader.missed === oldLeader.missed) {
-          const action =  !candidate ? 'started producing again' : 'is out of schedule';
-          await telegram(`Leader${candidate} \`${leader.name}\` ${action}, after missing *${total}* block(s), total blocks missed now is *${leader.missed}*`);
-          // Remove misser from db
-          delete db.missers[leader.name];
-          savedb();
+          // Sometimes the API is still not updated when this watcher is run causing
+          // false 'back producing' messages, so ignore if on schedule and still not produced
+          // blocks yet
+          if (candidate || leader.produced > oldLeader.produced) {
+            const action =  !candidate ? 'started producing again' : 'is out of schedule';
+            await telegram(`Leader${candidate} \`${leader.name}\` ${action}, after missing *${total}* block(s), total blocks missed now is *${leader.missed}*`);
+            // Remove misser from db
+            delete db.missers[leader.name];
+            savedb();
+          }
           return;
         }
 
